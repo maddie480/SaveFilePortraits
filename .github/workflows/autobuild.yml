@@ -1,0 +1,46 @@
+name: Build using .NET Core
+
+on: [push]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Check for tabs
+      run: |
+        find "(" -name "*.cs" -or -name "*.lua" -or -name "*.jl" -or -name "*.lang" -or -name "*.xml" -or -name "*.yaml" -or -name "*.yml" -or -name "*.txt" -or -name "*.md" ")" -exec grep -Pl "\t" {} \; > matches.txt
+        grep "" matches.txt && exit 1 || echo "No tab found!"
+
+    - name: Check for CRLF
+      run: |
+        find "(" -name "*.cs" -or -name "*.lua" -or -name "*.jl" -or -name "*.lang" -or -name "*.xml" -or -name "*.yaml" -or -name "*.yml" -or -name "*.txt" -or -name "*.md" ")" -exec grep -Plz "\r\n" {} \; > matches.txt
+        grep "" matches.txt && exit 1 || echo "No CRLF found!"
+
+    - name: Check for trailing spaces
+      run: |
+        find "(" -name "*.cs" -or -name "*.lua" -or -name "*.jl" -or -name "*.lang" -or -name "*.xml" -or -name "*.yaml" -or -name "*.yml" -or -name "*.txt" -or -name "*.md" ")" -exec grep -Pl " $" {} \; > matches.txt
+        grep "" matches.txt && exit 1 || echo "No trailing space found!"
+
+    - name: Setup .NET Core
+      uses: actions/setup-dotnet@v3
+      with:
+        dotnet-version: 2.2.108
+
+    - name: Restore with .NET Core
+      run: dotnet restore
+
+    - name: Build using Mono
+      run: msbuild *.sln "/p:Configuration=Release"
+
+    - name: Publish release
+      if: github.ref == 'refs/heads/main'
+      env:
+        ZIPNAME: SaveFilePortraits
+        GITHUB_SHA: ${{ github.sha }}
+        DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+      run: |
+        ZIPNAME=$ZIPNAME-${GITHUB_SHA:0:8}.zip
+        zip -qq -r $ZIPNAME everest.yaml bin/Release/net452 Dialog
+        curl -H 'Content-Type: multipart/form-data' -X POST -F "file=@$ZIPNAME" "$DISCORD_WEBHOOK"

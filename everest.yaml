@@ -1,0 +1,6 @@
+- Name: SaveFilePortraits
+  Version: 1.0.0
+  DLL: bin/Release/net452/SaveFilePortraits.dll
+  Dependencies:
+    - Name: Everest
+      Version: 1.3761.0
