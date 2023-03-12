@@ -2,6 +2,7 @@ using Microsoft.Xna.Framework;
 using Mono.Cecil.Cil;
 using Monocle;
 using MonoMod.Cil;
+using MonoMod.RuntimeDetour;
 using System;
 using System.Collections;
 using System.Collections.Generic;
@@ -20,6 +21,8 @@ namespace Celeste.Mod.SaveFilePortraits {
 
         public static List<Tuple<string, string>> ExistingPortraits;
 
+        private static ILHook slotRenderHook;
+
         private PortraitPicker portraitPicker;
 
         public override void Load() {
@@ -27,9 +30,10 @@ namespace Celeste.Mod.SaveFilePortraits {
             IL.Celeste.OuiFileSelectSlot.Setup += onOuiFileSelectSetup;
             Everest.Events.FileSelectSlot.OnCreateButtons += onCreateFileSelectSlotButtons;
             IL.Celeste.OuiFileSelectSlot.Update += onFileSelectSlotUpdate;
-            IL.Celeste.OuiFileSelectSlot.Render += onFileSelectSlotRender;
             On.Celeste.Overworld.End += onOverworldEnd;
             On.Celeste.OuiFileSelect.Enter += onFileSelectEnter;
+
+            slotRenderHook = new ILHook(typeof(OuiFileSelectSlot).GetMethod("orig_Render"), onFileSelectSlotRender);
         }
 
         public override void Unload() {
@@ -37,9 +41,11 @@ namespace Celeste.Mod.SaveFilePortraits {
             IL.Celeste.OuiFileSelectSlot.Setup -= onOuiFileSelectSetup;
             Everest.Events.FileSelectSlot.OnCreateButtons -= onCreateFileSelectSlotButtons;
             IL.Celeste.OuiFileSelectSlot.Update -= onFileSelectSlotUpdate;
-            IL.Celeste.OuiFileSelectSlot.Render -= onFileSelectSlotRender;
             On.Celeste.Overworld.End -= onOverworldEnd;
             On.Celeste.OuiFileSelect.Enter -= onFileSelectEnter;
+
+            slotRenderHook?.Dispose();
+            slotRenderHook = null;
         }
 
         private void onGFXLoadData(On.Celeste.GFX.orig_LoadData orig) {
@@ -134,35 +140,44 @@ namespace Celeste.Mod.SaveFilePortraits {
         private void onFileSelectSlotRender(ILContext il) {
             ILCursor cursor = new ILCursor(il);
 
-            // Jump to the point where we go through all buttons.
-            cursor.GotoNext(instr => instr.MatchLdarg(0), instr => instr.MatchLdfld<OuiFileSelectSlot>("newGameLevelSetPicker"));
+            // Jump just before rendering the "deleting" screen to make sure we're behind it.
+            cursor.GotoNext(MoveType.AfterLabel,
+                instr => instr.MatchLdarg(0),
+                instr => instr.MatchLdfld<OuiFileSelectSlot>("deletingEase"),
+                instr => instr.MatchLdcR4(0f));
 
-            // get the variable indices of position and i by type, which is a bit cleaner than hard coding them.
-            int positionVariableIndex = -1;
-            int loopIndexVariableIndex = -1;
-            foreach (VariableDefinition var in il.Method.Body.Variables) {
-                if (var.VariableType.FullName == "Microsoft.Xna.Framework.Vector2") {
-                    positionVariableIndex = var.Index;
-                } else if (var.VariableType.FullName == "System.Int32") {
-                    loopIndexVariableIndex = var.Index;
-                }
-            }
+            // get half a million private fields
+            cursor.Emit(OpCodes.Ldarg_0);
 
-            // then get half a million private fields and local variables.
-            cursor.Emit(OpCodes.Dup);
-            cursor.Emit(OpCodes.Ldloc, positionVariableIndex);
+            cursor.Emit(OpCodes.Ldarg_0);
+            cursor.Emit(OpCodes.Ldfld, typeof(OuiFileSelectSlot).GetField("selectedEase", BindingFlags.NonPublic | BindingFlags.Instance));
+
+            cursor.Emit(OpCodes.Ldarg_0);
+            cursor.Emit(OpCodes.Ldfld, typeof(OuiFileSelectSlot).GetField("buttons", BindingFlags.NonPublic | BindingFlags.Instance));
+
             cursor.Emit(OpCodes.Ldarg_0);
             cursor.Emit(OpCodes.Ldfld, typeof(OuiFileSelectSlot).GetField("buttonIndex", BindingFlags.NonPublic | BindingFlags.Instance));
-            cursor.Emit(OpCodes.Ldloc, loopIndexVariableIndex);
+
             cursor.Emit(OpCodes.Ldarg_0);
             cursor.Emit(OpCodes.Ldfld, typeof(OuiFileSelectSlot).GetField("deleting", BindingFlags.NonPublic | BindingFlags.Instance));
+
             cursor.Emit(OpCodes.Ldarg_0);
             cursor.Emit(OpCodes.Ldfld, typeof(OuiFileSelectSlot).GetField("wiggler", BindingFlags.NonPublic | BindingFlags.Instance));
 
-            cursor.EmitDelegate<Action<OuiFileSelectSlot.Button, Vector2, int, int, bool, Wiggler>>((button, position, buttonIndex, i, deleting, wiggler) => {
-                if (button == portraitPicker) {
-                    // call the portrait picker's Render function to complete the rendering with arrows.
-                    portraitPicker.Render(position, buttonIndex == i && !deleting, wiggler.Value * 8f);
+            cursor.EmitDelegate<Action<OuiFileSelectSlot, float, List<OuiFileSelectSlot.Button>, int, bool, Wiggler>>((self, selectedEase, buttons, buttonIndex, deleting, wiggler) => {
+                if (selectedEase > 0f) {
+                    Vector2 position = self.Position + new Vector2(0f, -150f + 350f * selectedEase);
+                    float lineHeight = ActiveFont.LineHeight;
+
+                    // go through all buttons, looking for the portrait picker.
+                    for (int i = 0; i < buttons.Count; i++) {
+                        OuiFileSelectSlot.Button button = buttons[i];
+                        if (button == portraitPicker) {
+                            // we found it: call its Render method.
+                            portraitPicker.Render(position, buttonIndex == i && !deleting, wiggler.Value * 8f);
+                        }
+                        position.Y += lineHeight * button.Scale + 15f;
+                    }
                 }
             });
         }
