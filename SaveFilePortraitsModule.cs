@@ -66,7 +66,8 @@ namespace Celeste.Mod.SaveFilePortraits {
             cursor.Emit(OpCodes.Ldarg_0);
             cursor.EmitDelegate<Func<string, OuiFileSelectSlot, string>>((orig, self) => {
                 if (self.Exists && !self.Corrupted) {
-                    LoadSaveData(self.FileSlot);
+                    DeserializeSaveData(self.FileSlot, ReadSaveData(self.FileSlot));
+                    global::Celeste.SaveData.LoadedModSaveDataIndex = int.MinValue;
                     if (GFX.PortraitsSpriteBank.Has(ModSaveData.Portrait)) {
                         return ModSaveData.Portrait;
                     }
@@ -240,7 +241,7 @@ namespace Celeste.Mod.SaveFilePortraits {
 
                 // save the change to disk if the file already exists (if we are not creating one)
                 if (selectSlot.Exists) {
-                    module.SaveSaveData(selectSlot.FileSlot);
+                    module.WriteSaveData(selectSlot.FileSlot, module.SerializeSaveData(selectSlot.FileSlot));
                 }
 
                 selectSlot.WiggleMenu();
