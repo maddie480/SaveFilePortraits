@@ -1,9 +1,11 @@
-﻿using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework;
 using Mono.Cecil.Cil;
 using Monocle;
 using MonoMod.Cil;
 using System;
+using System.Collections;
 using System.Collections.Generic;
+using System.IO;
 using System.Reflection;
 
 namespace Celeste.Mod.SaveFilePortraits {
@@ -27,6 +29,7 @@ namespace Celeste.Mod.SaveFilePortraits {
             IL.Celeste.OuiFileSelectSlot.Update += onFileSelectSlotUpdate;
             IL.Celeste.OuiFileSelectSlot.Render += onFileSelectSlotRender;
             On.Celeste.Overworld.End += onOverworldEnd;
+            On.Celeste.OuiFileSelect.Enter += onFileSelectEnter;
         }
 
         public override void Unload() {
@@ -36,6 +39,7 @@ namespace Celeste.Mod.SaveFilePortraits {
             IL.Celeste.OuiFileSelectSlot.Update -= onFileSelectSlotUpdate;
             IL.Celeste.OuiFileSelectSlot.Render -= onFileSelectSlotRender;
             On.Celeste.Overworld.End -= onOverworldEnd;
+            On.Celeste.OuiFileSelect.Enter -= onFileSelectEnter;
         }
 
         private void onGFXLoadData(On.Celeste.GFX.orig_LoadData orig) {
@@ -168,6 +172,13 @@ namespace Celeste.Mod.SaveFilePortraits {
 
             // just a bit of cleanup.
             portraitPicker = null;
+        }
+
+        private IEnumerator onFileSelectEnter(On.Celeste.OuiFileSelect.orig_Enter orig, OuiFileSelect self, Oui from) {
+            // make sure vanilla portraits are loaded (in case the player played a map with a custom Portraits.xml).
+            GFX.PortraitsSpriteBank = new SpriteBank(GFX.Portraits, Path.Combine("Graphics", "Portraits.xml"));
+
+            return orig(self, from);
         }
 
         // very very similar to OuiFileSelectSlotLevelSetPicker from Everest.
