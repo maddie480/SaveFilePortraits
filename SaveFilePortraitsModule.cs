@@ -32,6 +32,7 @@ namespace Celeste.Mod.SaveFilePortraits {
             IL.Celeste.OuiFileSelectSlot.Update += onFileSelectSlotUpdate;
             On.Celeste.Overworld.End += onOverworldEnd;
             On.Celeste.OuiFileSelect.Enter += onFileSelectEnter;
+            On.Celeste.OuiFileSelectSlot.OnNewGameSelected += onFileSelectNewGameSelected;
 
             slotRenderHook = new ILHook(typeof(OuiFileSelectSlot).GetMethod("orig_Render"), onFileSelectSlotRender);
         }
@@ -43,6 +44,7 @@ namespace Celeste.Mod.SaveFilePortraits {
             IL.Celeste.OuiFileSelectSlot.Update -= onFileSelectSlotUpdate;
             On.Celeste.Overworld.End -= onOverworldEnd;
             On.Celeste.OuiFileSelect.Enter -= onFileSelectEnter;
+            On.Celeste.OuiFileSelectSlot.OnNewGameSelected -= onFileSelectNewGameSelected;
 
             slotRenderHook?.Dispose();
             slotRenderHook = null;
@@ -194,6 +196,19 @@ namespace Celeste.Mod.SaveFilePortraits {
             GFX.PortraitsSpriteBank = new SpriteBank(GFX.Portraits, Path.Combine("Graphics", "Portraits.xml"));
 
             return orig(self, from);
+        }
+
+        private void onFileSelectNewGameSelected(On.Celeste.OuiFileSelectSlot.orig_OnNewGameSelected orig, OuiFileSelectSlot self) {
+            // when starting a new game, the mod save data will be reset...
+            // but we'd very much like to keep the picked portrait in the save data.
+
+            string portrait = ModSaveData.Portrait;
+            string animation = ModSaveData.Animation;
+
+            orig(self);
+
+            ModSaveData.Portrait = portrait;
+            ModSaveData.Animation = animation;
         }
 
         // very very similar to OuiFileSelectSlotLevelSetPicker from Everest.
