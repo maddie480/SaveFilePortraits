@@ -219,6 +219,7 @@ namespace Celeste.Mod.SaveFilePortraits {
             private Vector2 arrowOffset;
             private int lastDirection;
             private int currentIndex;
+            private string currentPortrait;
 
             public PortraitPicker(OuiFileSelectSlot selectSlot, SaveFilePortraitsModule module) {
                 this.selectSlot = selectSlot;
@@ -232,16 +233,28 @@ namespace Celeste.Mod.SaveFilePortraits {
                 if (currentIndex == -1) {
                     currentIndex = 0;
                 }
-
+                currentPortrait = ExistingPortraits[currentIndex].Item1;
                 arrowOffset = new Vector2(20f + ActiveFont.Measure(Label).X / 2 * Scale, 0f);
             }
 
             public void Update(bool selected) {
                 if (selected) {
                     if (Input.MenuLeft.Pressed) {
-                        changePortraitSelection(-1);
+                        if (Input.MenuLeft.Repeating) {
+                            int i;
+                            for (i = currentIndex; i >= 0 && ExistingPortraits[i].Item1 == currentPortrait; i--) { }
+                            changePortraitSelection(i - currentIndex);
+                        } else {
+                            changePortraitSelection(-1);
+                        }
                     } else if (Input.MenuRight.Pressed) {
-                        changePortraitSelection(1);
+                        if (Input.MenuRight.Repeating) {
+                            int i;
+                            for (i = currentIndex; i < ExistingPortraits.Count && ExistingPortraits[i].Item1 == currentPortrait; i++) { }
+                            changePortraitSelection(i - currentIndex);
+                        } else {
+                            changePortraitSelection(1);
+                        }
                     }
                 } else {
                     lastDirection = 0;
@@ -272,7 +285,7 @@ namespace Celeste.Mod.SaveFilePortraits {
                     currentIndex = ExistingPortraits.Count - 1;
 
                 // commit the change to save data
-                module.ModSaveData.Portrait = ExistingPortraits[currentIndex].Item1;
+                currentPortrait = module.ModSaveData.Portrait = ExistingPortraits[currentIndex].Item1;
                 module.ModSaveData.Animation = ExistingPortraits[currentIndex].Item2;
 
                 // apply the change live
