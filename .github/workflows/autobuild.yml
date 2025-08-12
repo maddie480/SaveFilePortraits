@@ -6,7 +6,7 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v5
 
     - name: Check for tabs
       run: |
@@ -25,14 +25,12 @@ jobs:
 
     - name: Setup .NET Core
       uses: actions/setup-dotnet@v4
-      with:
-        dotnet-version: 2.2.108
 
     - name: Restore with .NET Core
       run: dotnet restore
 
-    - name: Build using Mono
-      run: msbuild *.sln "/p:Configuration=Release"
+    - name: Build using .NET Core
+      run: dotnet build --configuration Release --no-restore *.sln
 
     - name: Publish release
       if: github.ref == 'refs/heads/main'
